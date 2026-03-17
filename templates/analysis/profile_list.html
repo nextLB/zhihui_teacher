@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}风格画像列表{% endblock %}
+{% block content %}
+<h2>风格画像列表</h2>
+<hr>
+<a href="{% url 'analysis:create_profile' %}" class="btn btn-primary mb-3">创建画像</a>
+<table class="table table-hover">
+    <thead><tr><th>名称</th><th>风格类型</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody>
+        {% for profile in profiles %}
+        <tr><td>{{ profile.name }}</td><td>{{ profile.get_style_type_display }}</td><td>{{ profile.created_at }}</td><td><a href="{% url 'analysis:profile_detail' profile.id %}" class="btn btn-sm btn-outline-primary">查看</a></td></tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-muted">暂无画像</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

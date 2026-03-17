@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}控制台 - 智慧课堂{% endblock %}
+
+{% block content %}
+<h2>用户控制台</h2>
+<hr>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">音频文件</h5>
+                <p class="card-text display-4">{{ completed_audios }}/{{ total_audios }}</p>
+                <p class="card-text">已完成/总数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">视频文件</h5>
+                <p class="card-text display-4">{{ completed_videos }}/{{ total_videos }}</p>
+                <p class="card-text">已完成/总数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">风格画像</h5>
+                <p class="card-text display-4">{{ total_profiles }}</p>
+                <p class="card-text">已创建</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">快速操作</h5>
+                <a href="{% url 'analysis:upload_audio' %}" class="btn btn-primary mb-2"><i class="bi bi-mic"></i> 上传音频</a>
+                <a href="{% url 'analysis:upload_video' %}" class="btn btn-success mb-2"><i class="bi bi-camera-video"></i> 上传视频</a>
+                <a href="{% url 'analysis:create_profile' %}" class="btn btn-info"><i class="bi bi-person-badge"></i> 创建画像</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <h3>最近上传</h3>
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#audios">音频</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#videos">视频</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#profiles">画像</button>
+            </li>
+        </ul>
+        <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="audios">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>状态</th>
+                            <th>上传时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for audio in recent_audios %}
+                        <tr>
+                            <td>{{ audio.title }}</td>
+                            <td><span class="badge bg-{{ audio.status }}">{{ audio.get_status_display }}</span></td>
+                            <td>{{ audio.upload_time }}</td>
+                            <td><a href="{% url 'analysis:audio_detail' audio.id %}" class="btn btn-sm btn-outline-primary">查看</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">暂无数据</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="videos">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>状态</th>
+                            <th>上传时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for video in recent_videos %}
+                        <tr>
+                            <td>{{ video.title }}</td>
+                            <td><span class="badge bg-{{ video.status }}">{{ video.get_status_display }}</span></td>
+                            <td>{{ video.upload_time }}</td>
+                            <td><a href="{% url 'analysis:video_detail' video.id %}" class="btn btn-sm btn-outline-primary">查看</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">暂无数据</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="profiles">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>风格类型</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for profile in recent_profiles %}
+                        <tr>
+                            <td>{{ profile.name }}</td>
+                            <td>{{ profile.get_style_type_display }}</td>
+                            <td>{{ profile.created_at }}</td>
+                            <td><a href="{% url 'analysis:profile_detail' profile.id %}" class="btn btn-sm btn-outline-primary">查看</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">暂无数据</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

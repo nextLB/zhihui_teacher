@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}音频列表 - 智慧课堂{% endblock %}
+
+{% block content %}
+<h2>音频文件列表</h2>
+<hr>
+<a href="{% url 'analysis:upload_audio' %}" class="btn btn-primary mb-3"><i class="bi bi-upload"></i> 上传音频</a>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th>标题</th>
+            <th>类型</th>
+            <th>状态</th>
+            <th>上传时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for audio in audios %}
+        <tr>
+            <td>{{ audio.title }}</td>
+            <td>{{ audio.get_file_type_display }}</td>
+            <td><span class="badge bg-{{ audio.status }}">{{ audio.get_status_display }}</span></td>
+            <td>{{ audio.upload_time }}</td>
+            <td>
+                <a href="{% url 'analysis:audio_detail' audio.id %}" class="btn btn-sm btn-outline-primary">查看</a>
+                <a href="{% url 'analysis:delete_audio' audio.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定删除?')">删除</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted">暂无音频文件</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if page_obj.has_other_pages %}
+<nav>
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">上一页</a></li>
+        {% endif %}
+        <li class="page-item active"><span class="page-link">第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">下一页</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

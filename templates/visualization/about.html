@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}关于 - 智慧课堂{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>关于系统</h2>
+        <hr>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-8">
+        <h4>系统介绍</h4>
+        <p>本系统是一个面向智慧课堂的教师语音特征可视化与风格画像系统。通过融合语音特征分析与教师姿态行为识别，生成综合性的教师风格画像。</p>
+        
+        <h4 class="mt-4">主要功能</h4>
+        <ul>
+            <li><strong>语音分析：</strong>支持音频文件上传和分析，提取语速、语气、提问类型等特征</li>
+            <li><strong>行为分析：</strong>采用YOLOv8进行视频分析，识别教师姿态和学生行为</li>
+            <li><strong>风格画像：</strong>融合多维度特征，生成教师风格画像和可视化图表</li>
+        </ul>
+        
+        <h4 class="mt-4">技术栈</h4>
+        <ul>
+            <li>后端：Python + Django</li>
+            <li>语音处理：librosa, Vosk/Whisper</li>
+            <li>图像处理：OpenCV + YOLOv8</li>
+            <li>前端：HTML + CSS + JavaScript + ECharts</li>
+        </ul>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">联系信息</div>
+            <div class="card-body">
+                <p><i class="bi bi-envelope"></i> 邮箱: contact@example.com</p>
+                <p><i class="bi bi-github"></i> GitHub: example</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}风格画像详情{% endblock %}
+{% block content %}
+<h2>风格画像详情</h2>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <h5>{{ profile.name }}</h5>
+        <p><strong>风格类型：</strong>{{ profile.get_style_type_display }}</p>
+        <p><strong>风格标签：</strong>{% for tag in profile.style_tags %}<span class="badge bg-info">{{ tag }}</span> {% endfor %}</p>
+        <p><strong>创建时间：</strong>{{ profile.created_at }}</p>
+    </div>
+</div>
+<div class="row mt-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">特征数据</div>
+            <div class="card-body">
+                <pre>{{ profile.feature_vector|pprint }}</pre>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">雷达图数据</div>
+            <div class="card-body">
+                <div id="radarChart" style="height:300px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+var chart = echarts.init(document.getElementById('radarChart'));
+chart.setOption({
+    radar: {
+        indicator: {{ profile.radar_data.indicators|safe|default:"[]" }}
+    },
+    series: [{
+        type: 'radar',
+        data: [{ value: {{ profile.radar_data.values|safe|default:"[]" }} }]
+    }]
+});
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}视频详情{% endblock %}
+{% block content %}
+<h2>视频详情</h2>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <h5>{{ video.title }}</h5>
+        <p><strong>状态：</strong><span class="badge bg-{{ video.status }}">{{ video.get_status_display }}</span></p>
+        {% if video.status == 'pending' %}
+        <a href="{% url 'analysis:start_video_analysis' video.id %}" class="btn btn-primary">开始分析</a>
+        {% elif video.status == 'completed' %}
+        <a href="{% url 'analysis:create_profile' %}?video_id={{ video.id }}" class="btn btn-success">创建风格画像</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}首页 - 智慧课堂{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="p-5 mb-4 bg-light rounded-3">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">智慧课堂教师语音特征可视化与风格画像系统</h1>
+                <p class="col-md-8 fs-4">通过融合语音特征分析与教师姿态行为识别，生成综合性的教师风格画像，帮助教师直观了解自身的教学语言和课堂行为特点。</p>
+                {% if not user.is_authenticated %}
+                <a class="btn btn-primary btn-lg" href="{% url 'register' %}">立即注册</a>
+                <a class="btn btn-outline-secondary btn-lg" href="{% url 'login' %}">登录</a>
+                {% else %}
+                <a class="btn btn-primary btn-lg" href="{% url 'dashboard' %}">进入控制台</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-mic"></i> 语音分析</h5>
+                <p class="card-text">采集课堂音频，利用深度学习技术提取语音特征（语速、语气、提问类型等）。</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-camera-video"></i> 行为分析</h5>
+                <p class="card-text">采用YOLOv8模型进行教师与学生检测，提取姿态关键点，分析课堂行为。</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-person-badge"></i> 风格画像</h5>
+                <p class="card-text">将语音与行为特征融合，生成多维度教师风格画像，直观展示教学特点。</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <h3>最近动态</h3>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">最近音频</div>
+            <ul class="list-group list-group-flush">
+                {% for audio in recent_audios %}
+                <li class="list-group-item">
+                    <a href="{% url 'analysis:audio_detail' audio.id %}">{{ audio.title }}</a>
+                    <span class="badge bg-{{ audio.status|default:'secondary' }}">{{ audio.get_status_display }}</span>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">暂无音频文件</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">最近视频</div>
+            <ul class="list-group list-group-flush">
+                {% for video in recent_videos %}
+                <li class="list-group-item">
+                    <a href="{% url 'analysis:video_detail' video.id %}">{{ video.title }}</a>
+                    <span class="badge bg-{{ video.status|default:'secondary' }}">{{ video.get_status_display }}</span>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">暂无视频文件</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">最近画像</div>
+            <ul class="list-group list-group-flush">
+                {% for profile in recent_profiles %}
+                <li class="list-group-item">
+                    <a href="{% url 'analysis:profile_detail' profile.id %}">{{ profile.name }}</a>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted">暂无风格画像</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

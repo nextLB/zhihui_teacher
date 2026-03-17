@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}音频详情 - 智慧课堂{% endblock %}
+
+{% block content %}
+<h2>音频详情</h2>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">{{ audio.title }}</h5>
+        <p class="card-text">{{ audio.description|default:"无描述" }}</p>
+        <p><strong>状态：</strong><span class="badge bg-{{ audio.status }}">{{ audio.get_status_display }}</span></p>
+        <p><strong>文件类型：</strong>{{ audio.get_file_type_display }}</p>
+        <p><strong>上传时间：</strong>{{ audio.upload_time }}</p>
+        {% if audio.file %}
+        <p><strong>文件：</strong><a href="{{ audio.file.url }}">下载</a></p>
+        {% endif %}
+        
+        {% if audio.status == 'pending' %}
+        <a href="{% url 'analysis:start_audio_analysis' audio.id %}" class="btn btn-primary">开始分析</a>
+        {% elif audio.status == 'processing' %}
+        <button class="btn btn-secondary" disabled>分析中...</button>
+        {% elif audio.status == 'completed' and analysis_result %}
+        <a href="{% url 'analysis:create_profile' %}?audio_id={{ audio.id }}" class="btn btn-success">创建风格画像</a>
+        {% endif %}
+        
+        <a href="{% url 'analysis:audio_list' %}" class="btn btn-outline-secondary">返回列表</a>
+    </div>
+</div>
+
+{% if audio.status == 'completed' and analysis_result %}
+<div class="card mt-3">
+    <div class="card-header">分析结果</div>
+    <div class="card-body">
+        <p><strong>语速：</strong>{{ analysis_result.speech_rate }} 字/分钟</p>
+        <p><strong>音高基频：</strong>{{ analysis_result.pitch_frequency }} Hz</p>
+        <p><strong>语气类型：</strong>{{ analysis_result.tone_type }}</p>
+        <p><strong>语气置信度：</strong>{{ analysis_result.tone_confidence }}</p>
+        <p><strong>平均话语长度：</strong>{{ analysis_result.utterance_length_avg }}</p>
+        <p><strong>有效语音时长：</strong>{{ analysis_result.valid_speech_duration }} 秒</p>
+        {% if analysis_result.transcribed_text %}
+        <p><strong>转写文本：</strong></p>
+        <p class="text-muted">{{ analysis_result.transcribed_text }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

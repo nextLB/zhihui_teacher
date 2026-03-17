@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}登录 - 智慧课堂{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4>用户登录</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">用户名</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">登录</button>
+                </form>
+                <hr>
+                <p class="text-center">还没有账号？<a href="{% url 'register' %}">立即注册</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
