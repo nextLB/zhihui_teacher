@@ -10,8 +10,8 @@
                 <h1 class="display-5 fw-bold">智慧课堂教师语音特征可视化与风格画像系统</h1>
                 <p class="col-md-8 fs-4">通过融合语音特征分析与教师姿态行为识别，生成综合性的教师风格画像，帮助教师直观了解自身的教学语言和课堂行为特点。</p>
                 {% if not user.is_authenticated %}
-                <a class="btn btn-primary btn-lg" href="{% url 'register' %}">立即注册</a>
-                <a class="btn btn-outline-secondary btn-lg" href="{% url 'login' %}">登录</a>
+                <a class="btn btn-primary btn-lg" href="{% url 'users:register' %}">立即注册</a>
+                <a class="btn btn-outline-secondary btn-lg" href="{% url 'users:login' %}">登录</a>
                 {% else %}
                 <a class="btn btn-primary btn-lg" href="{% url 'dashboard' %}">进入控制台</a>
                 {% endif %}
