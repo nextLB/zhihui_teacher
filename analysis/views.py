@@ -33,13 +33,13 @@ def upload_audio(request):
         
         if not audio_file:
             messages.error(request, '请选择音频文件')
-            return redirect('upload_audio')
+            return redirect('analysis:upload_audio')
         
         # 获取文件扩展名
         file_ext = audio_file.name.split('.')[-1].lower() if '.' in audio_file.name else 'other'
         if file_ext not in ['mp3', 'wav', 'm4a']:
             messages.error(request, '不支持的文件格式，请上传MP3、WAV或M4A文件')
-            return redirect('upload_audio')
+            return redirect('analysis:upload_audio')
         
         # 创建音频文件记录
         audio = AudioFile.objects.create(
@@ -53,7 +53,7 @@ def upload_audio(request):
         )
         
         messages.success(request, '音频文件上传成功！')
-        return redirect('audio_detail', audio_id=audio.id)
+        return redirect('analysis:audio_detail', audio_id=audio.id)
     
     return render(request, 'analysis/upload_audio.html')
 
@@ -77,13 +77,13 @@ def upload_video(request):
         
         if not video_file:
             messages.error(request, '请选择视频文件')
-            return redirect('upload_video')
+            return redirect('analysis:upload_video')
         
         # 获取文件扩展名
         file_ext = video_file.name.split('.')[-1].lower() if '.' in video_file.name else 'other'
         if file_ext not in ['mp4', 'avi', 'mov']:
             messages.error(request, '不支持的文件格式，请上传MP4、AVI或MOV文件')
-            return redirect('upload_video')
+            return redirect('analysis:upload_video')
         
         # 创建视频文件记录
         video = VideoFile.objects.create(
@@ -97,7 +97,7 @@ def upload_video(request):
         )
         
         messages.success(request, '视频文件上传成功！')
-        return redirect('video_detail', video_id=video.id)
+        return redirect('analysis:video_detail', video_id=video.id)
     
     return render(request, 'analysis/upload_video.html')
 
@@ -306,14 +306,14 @@ def start_audio_analysis(request, audio_id):
     
     if audio.status != 'pending':
         messages.warning(request, '该文件已经在处理中或已完成')
-        return redirect('audio_detail', audio_id=audio.id)
+        return redirect('analysis:audio_detail', audio_id=audio.id)
     
     # 启动后台分析任务
     thread = threading.Thread(target=run_audio_analysis, args=(audio_id,))
     thread.start()
     
     messages.success(request, '音频分析任务已启动，请稍后刷新页面查看结果')
-    return redirect('audio_detail', audio_id=audio.id)
+    return redirect('analysis:audio_detail', audio_id=audio.id)
 
 
 @login_required
@@ -332,14 +332,14 @@ def start_video_analysis(request, video_id):
     
     if video.status != 'pending':
         messages.warning(request, '该文件已经在处理中或已完成')
-        return redirect('video_detail', video_id=video.id)
+        return redirect('analysis:video_detail', video_id=video.id)
     
     # 启动后台分析任务
     thread = threading.Thread(target=run_video_analysis, args=(video_id,))
     thread.start()
     
     messages.success(request, '视频分析任务已启动，请稍后刷新页面查看结果')
-    return redirect('video_detail', video_id=video.id)
+    return redirect('analysis:video_detail', video_id=video.id)
 
 
 @login_required
@@ -361,7 +361,7 @@ def create_profile(request):
         
         if not audio_id and not video_id:
             messages.error(request, '请至少选择一个已分析的音频或视频')
-            return redirect('create_profile')
+            return redirect('analysis:create_profile')
         
         audio_result = None
         video_result = None
@@ -413,7 +413,7 @@ def create_profile(request):
         )
         
         messages.success(request, '风格画像创建成功！')
-        return redirect('profile_detail', profile_id=profile.id)
+        return redirect('analysis:profile_detail', profile_id=profile.id)
     
     # 获取用户已完成的音频和视频
     completed_audios = AudioFile.objects.filter(user=request.user, status='completed')
@@ -482,7 +482,7 @@ def delete_audio(request, audio_id):
     audio.file.delete()
     audio.delete()
     messages.success(request, '音频文件已删除')
-    return redirect('audio_list')
+    return redirect('analysis:audio_list')
 
 
 @login_required
@@ -501,7 +501,7 @@ def delete_video(request, video_id):
     video.file.delete()
     video.delete()
     messages.success(request, '视频文件已删除')
-    return redirect('video_list')
+    return redirect('analysis:video_list')
 
 
 @login_required
@@ -519,4 +519,4 @@ def delete_profile(request, profile_id):
     profile = get_object_or_404(TeacherStyleProfile, id=profile_id, user=request.user)
     profile.delete()
     messages.success(request, '风格画像已删除')
-    return redirect('profile_list')
+    return redirect('analysis:profile_list')
