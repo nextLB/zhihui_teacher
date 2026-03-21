@@ -26,41 +26,53 @@
 
 {% if video.status == 'processing' %}
 <script>
-function checkProgress() {
-    fetch('{% url "analysis:video_analysis_progress" video.id %}')
-        .then(response => response.json())
-        .then(data => {
-            const progressBar = document.getElementById('progressBar');
-            const frameCount = document.getElementById('frameCount');
-            const totalFrames = document.getElementById('totalFrames');
-            
-            if (data.total_frames > 0) {
-                totalFrames.textContent = data.total_frames;
-            }
-            frameCount.textContent = data.frame_id;
-            
-            if (data.status === 'completed') {
-                progressBar.style.width = '100%';
-                progressBar.textContent = '完成!';
-                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-                progressBar.classList.add('bg-success');
-                location.reload();
-            } else if (data.status === 'failed') {
-                progressBar.classList.add('bg-danger');
-                progressBar.textContent = '分析失败';
-            } else {
-                progressBar.style.width = data.progress + '%';
-                progressBar.textContent = Math.round(data.progress) + '%';
-                setTimeout(checkProgress, 2000);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            setTimeout(checkProgress, 3000);
-        });
-}
-
-checkProgress();
+(function() {
+    var videoId = {{ video.id }};
+    var progressUrl = '/analysis/video/' + videoId + '/progress/';
+    
+    function checkProgress() {
+        fetch(progressUrl)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var progressBar = document.getElementById('progressBar');
+                var frameCount = document.getElementById('frameCount');
+                var totalFrames = document.getElementById('totalFrames');
+                
+                if (!progressBar) {
+                    return;
+                }
+                
+                if (totalFrames && data.total_frames > 0) {
+                    totalFrames.textContent = data.total_frames;
+                }
+                if (frameCount) {
+                    frameCount.textContent = data.frame_id || 0;
+                }
+                
+                if (data.status === 'completed') {
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = '完成!';
+                    progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else if (data.status === 'failed') {
+                    progressBar.classList.add('bg-danger');
+                    progressBar.textContent = '分析失败';
+                } else {
+                    var progress = data.progress || 0;
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = Math.round(progress) + '%';
+                    setTimeout(checkProgress, 2000);
+                }
+            })
+            .catch(function(error) {
+                console.error('Error:', error);
+                setTimeout(checkProgress, 3000);
+            });
+    }
+    
+    checkProgress();
+})();
 </script>
 {% endif %}
 {% endblock %}

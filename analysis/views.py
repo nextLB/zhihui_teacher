@@ -213,10 +213,7 @@ def run_audio_analysis(audio_id):
         audio.status = 'processing'
         audio.save()
         
-        # 调用音频分析算法
-        # 注意: 这里调用的是analysis/audio_processor.py中定义的分析函数
-        # 用户需要在那些函数中实现具体的算法代码
-        result = analyze_audio(audio.file.path)
+        result = analyze_audio(audio.file.path, audio_id)
         
         # 保存分析结果
         AudioAnalysisResult.objects.create(
@@ -677,3 +674,133 @@ def save_collection(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def audio_analysis_progress(request, audio_id):
+    """
+    获取音频分析进度API
+    
+    参数:
+        request: HttpRequest对象
+        audio_id: int - 音频文件ID
+        
+    返回:
+        JsonResponse - 分析进度信息
+    """
+    audio = get_object_or_404(AudioFile, id=audio_id, user=request.user)
+    
+    progress_file = os.path.join(settings.MEDIA_ROOT, f'audio_{audio_id}_progress.json')
+    
+    if os.path.exists(progress_file):
+        with open(progress_file, 'r') as f:
+            progress_data = json.load(f)
+    else:
+        progress_data = {'stage': 'processing', 'progress': 0}
+    
+    return JsonResponse({
+        'status': audio.status,
+        'stage': progress_data.get('stage', 'processing'),
+        'duration': progress_data.get('duration', 0),
+        'text_length': progress_data.get('text_length', 0)
+    })
+
+
+@login_required
+def generate_profile_image(request, profile_id):
+    """
+    生成风格画像图片
+    """
+    profile = get_object_or_404(TeacherStyleProfile, id=profile_id, user=request.user)
+    
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK SC', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        fig = plt.figure(figsize=(12, 8), facecolor='white')
+        
+        radar_data = profile.radar_data
+        indicators = [ind['name'] for ind in radar_data.get('indicators', [])]
+        values = radar_data.get('values', [])
+        
+        angles = np.linspace(0, 2*np.pi, len(indicators), endpoint=False).tolist()
+        values_plot = values + [values[0]]
+        angles_plot = angles + [angles[0]]
+        
+        ax1 = fig.add_subplot(121, polar=True)
+        ax1.fill(angles_plot, values_plot, alpha=0.25, color='blue')
+        ax1.plot(angles_plot, values_plot, 'o-', linewidth=2, color='blue')
+        ax1.set_xticks(angles)
+        ax1.set_xticklabels(indicators, fontsize=10)
+        ax1.set_title(f'{profile.name}\n{profile.get_style_type_display()}', fontsize=14, fontweight='bold')
+        
+        ax2 = fig.add_subplot(122)
+        ax2.axis('off')
+        
+        style_type_zh = {
+            'active_interactive': '活跃互动型',
+            'calm_lecture': '沉稳讲授型',
+            'walking_guide': '走动引导型',
+            'mixed': '混合型'
+        }
+        type_display = style_type_zh.get(profile.style_type, profile.style_type)
+        
+        tags_text = ', '.join(profile.style_tags) if profile.style_tags else 'N/A'
+        info_text = f"""Style Type: {type_display}
+
+Tags: {tags_text}
+
+Created: {profile.created_at.strftime('%Y-%m-%d %H:%M')}
+
+Features:
+Speech Rate: {profile.feature_vector.get('speech_rate_norm', 0):.2f}
+Tone Diversity: {profile.feature_vector.get('tone_diversity', 0):.2f}
+Question Ratio: {profile.feature_vector.get('question_ratio', 0):.2f}
+Walking Ratio: {profile.feature_vector.get('walking_ratio', 0):.2f}
+Writing Ratio: {profile.feature_vector.get('writing_ratio', 0):.2f}
+Interaction: {profile.feature_vector.get('interaction_ratio', 0):.2f}
+Activity: {profile.feature_vector.get('movement_activity', 0):.2f}"""
+        
+        ax2.text(0.1, 0.9, info_text, transform=ax2.transAxes, fontsize=11,
+                verticalalignment='top', fontfamily='sans-serif',
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+        
+        plt.tight_layout()
+        
+        img_path = os.path.join(settings.MEDIA_ROOT, 'profile_images')
+        os.makedirs(img_path, exist_ok=True)
+        
+        save_path = os.path.join(img_path, f'profile_{profile_id}.png')
+        plt.savefig(save_path, dpi=100, bbox_inches='tight', facecolor='white')
+        plt.close()
+        
+        profile.profile_image_url = f'/media/profile_images/profile_{profile_id}.png'
+        profile.save()
+        
+        return JsonResponse({'success': True, 'image_url': profile.profile_image_url})
+        
+    except ImportError as e:
+        return JsonResponse({'success': False, 'error': f'缺少依赖库: {str(e)}'}, status=500)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def profile_detail(request, profile_id):
+    """
+    风格画像详情视图
+    """
+    profile = get_object_or_404(TeacherStyleProfile, id=profile_id, user=request.user)
+    
+    return render(request, 'analysis/profile_detail.html', {
+        'profile': profile,
+        'profile_image': profile.profile_image_url
+    })

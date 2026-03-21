@@ -191,6 +191,9 @@ class TeacherStyleProfile(models.Model):
     # 时序数据
     timeline_data = models.JSONField(default=dict, verbose_name='时序图数据')
     
+    # 风格画像图片URL
+    profile_image_url = models.URLField(null=True, blank=True, verbose_name='风格画像图片URL')
+    
     # 创建时间
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')

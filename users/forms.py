@@ -55,7 +55,7 @@ class UserProfileForm(forms.ModelForm):
     """
     class Meta:
         model = UserProfile
-        fields = ('nickname', 'phone', 'avatar')
+        fields = ('nickname', 'phone', 'avatar_url')
         widgets = {
             'nickname': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -65,7 +65,8 @@ class UserProfileForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': '请输入电话号码'
             }),
-            'avatar': forms.FileInput(attrs={
-                'class': 'form-control'
+            'avatar_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': '请输入头像URL'
             }),
         }

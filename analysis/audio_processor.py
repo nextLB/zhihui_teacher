@@ -12,7 +12,11 @@ import tempfile
 import shutil
 from typing import Dict, Any, Optional, List, Tuple
 from django.conf import settings
-import numpy as np
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 audio_code_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'audio_code')
 sys.path.insert(0, audio_code_path)
@@ -278,6 +282,18 @@ class SemanticAnalyzer:
 def analyze_audio(file_path: str, audio_id: int = None) -> Dict[str, Any]:
     """完整的音频分析流程"""
     
+    def update_progress(stage: str, progress: float, message: str = ''):
+        if audio_id:
+            progress_file = os.path.join(settings.MEDIA_ROOT, f'audio_{audio_id}_progress.json')
+            progress_data = {
+                'stage': stage,
+                'progress': progress,
+                'message': message
+            }
+            with open(progress_file, 'w') as f:
+                json.dump(progress_data, f)
+        print(f"[音频分析] {stage}: {progress*100:.0f}% {message}")
+    
     try:
         import librosa
     except ImportError:
@@ -289,6 +305,7 @@ def analyze_audio(file_path: str, audio_id: int = None) -> Dict[str, Any]:
         }
     
     try:
+        update_progress('加载音频', 0.1, '正在加载音频文件...')
         wav_path = AudioPreprocessor.convert_to_wav(file_path)
         audio_data, sample_rate = AudioPreprocessor.load_audio(wav_path)
         
@@ -301,26 +318,36 @@ def analyze_audio(file_path: str, audio_id: int = None) -> Dict[str, Any]:
             }
         
         duration = len(audio_data) / sample_rate
+        update_progress('VAD检测', 0.2, '正在检测语音活动...')
         
         speech_segments = AudioPreprocessor.voice_activity_detection(audio_data, sample_rate)
+        
+        update_progress('提取声学特征', 0.4, '正在提取音高和能量特征...')
         
         valid_duration = sum((end - start) * 256 / sample_rate for start, end in speech_segments)
         silence_duration = duration - valid_duration
         
         pitch_frequency = AudioFeatureExtractor.extract_pitch_frequency(audio_data, sample_rate)
         short_time_energy = AudioFeatureExtractor.extract_short_time_energy(audio_data, sample_rate)
+        
+        update_progress('提取MFCC特征', 0.5, '正在计算MFCC...')
         mfcc_features = AudioFeatureExtractor.extract_mfcc(audio_data, sample_rate)
+        
+        update_progress('语音识别', 0.6, '正在识别语音内容(Whisper)...')
         
         classifier = ToneClassifier()
         
         try:
             recognizer = SpeechRecognizer(model_size='tiny')
             transcribed_text = recognizer.recognize_from_file(wav_path)
+            update_progress('语音识别完成', 0.8, f'识别到 {len(transcribed_text)} 个字符')
         except Exception as e:
             print(f"语音识别失败: {e}")
             transcribed_text = ''
         
         speech_rate = AudioFeatureExtractor.extract_speech_rate(transcribed_text, duration)
+        
+        update_progress('语义分析', 0.9, '正在分析提问类型...')
         
         features = {
             'speech_rate': speech_rate,
@@ -333,10 +360,13 @@ def analyze_audio(file_path: str, audio_id: int = None) -> Dict[str, Any]:
         question_types = SemanticAnalyzer.analyze_question_types(transcribed_text)
         utterance_length_avg = SemanticAnalyzer.calculate_utterance_length(transcribed_text)
         
+        update_progress('完成', 1.0, '分析完成!')
+        
         if audio_id:
             progress_file = os.path.join(settings.MEDIA_ROOT, f'audio_{audio_id}_progress.json')
             progress_data = {
                 'stage': 'completed',
+                'progress': 1.0,
                 'duration': duration,
                 'text_length': len(transcribed_text)
             }

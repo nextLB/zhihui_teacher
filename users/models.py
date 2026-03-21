@@ -8,7 +8,8 @@ class UserProfile(models.Model):
     用于存储用户的额外信息，如头像、昵称等
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, verbose_name='头像')
+    # avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, verbose_name='头像')
+    avatar_url = models.URLField(blank=True, null=True, verbose_name='头像URL')
     nickname = models.CharField(max_length=50, blank=True, verbose_name='昵称')
     phone = models.CharField(max_length=20, blank=True, verbose_name='电话')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')

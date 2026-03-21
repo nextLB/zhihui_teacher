@@ -19,7 +19,14 @@
         {% if audio.status == 'pending' %}
         <a href="{% url 'analysis:start_audio_analysis' audio.id %}" class="btn btn-primary">开始分析</a>
         {% elif audio.status == 'processing' %}
-        <button class="btn btn-secondary" disabled>分析中...</button>
+        <div class="alert alert-info">
+            <h5>正在分析中...</h5>
+            <div class="progress" style="height: 25px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%">0%</div>
+            </div>
+            <p class="mt-2" id="progressText">正在加载模型...</p>
+        </div>
         {% elif audio.status == 'completed' and analysis_result %}
         <a href="{% url 'analysis:create_profile' %}?audio_id={{ audio.id }}" class="btn btn-success">创建风格画像</a>
         {% endif %}
@@ -27,6 +34,57 @@
         <a href="{% url 'analysis:audio_list' %}" class="btn btn-outline-secondary">返回列表</a>
     </div>
 </div>
+
+{% if audio.status == 'processing' %}
+<script>
+(function() {
+    const audioId = {{ audio.id }};
+    const progressUrl = '/analysis/audio/' + audioId + '/progress/';
+    
+    function checkAudioProgress() {
+        fetch(progressUrl)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                
+                if (!progressBar || !progressText) {
+                    return;
+                }
+                
+                if (data.status === 'completed') {
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = '完成!';
+                    progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                    progressText.textContent = '分析完成!';
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else if (data.status === 'failed') {
+                    progressBar.classList.add('bg-danger');
+                    progressBar.textContent = '分析失败';
+                    progressText.textContent = '分析过程中出现错误';
+                } else {
+                    var progress = data.progress || 0;
+                    var stage = data.stage || '处理中';
+                    var message = data.message || '';
+                    
+                    progressBar.style.width = (progress * 100) + '%';
+                    progressBar.textContent = Math.round(progress * 100) + '%';
+                    progressText.textContent = stage + (message ? ' - ' + message : '');
+                    
+                    setTimeout(checkAudioProgress, 2000);
+                }
+            })
+            .catch(function(error) {
+                console.error('Error:', error);
+                setTimeout(checkAudioProgress, 3000);
+            });
+    }
+    
+    checkAudioProgress();
+})();
+</script>
+{% endif %}
 
 {% if audio.status == 'completed' and analysis_result %}
 <div class="card mt-3">
