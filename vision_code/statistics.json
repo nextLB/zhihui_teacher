@@ -1,0 +1,81 @@
+{
+  "summary": {
+    "total_frames": 3490,
+    "total_duration": 118.60258913040161,
+    "teacher_pose_time_ratio": {
+      "未知": 0.9762219426205587,
+      "走动": 0.0
+    },
+    "student_behavior_counts": {},
+    "interaction_count": 0,
+    "interaction_frequency": 0.0,
+    "interaction_duration_ratio": 0.0,
+    "walking_range": 688.3532673118434,
+    "walking_speed": 1647.4925456421158,
+    "pose_transition_count": 6,
+    "average_pose_duration": {
+      "未知": 28.945612490177155,
+      "走动": 0.0
+    }
+  },
+  "pose_segments": [
+    {
+      "start_time": 2.820139169692993,
+      "end_time": 7.165026664733887,
+      "duration": 4.3448874950408936,
+      "pose_type": "未知",
+      "frame_start": 0,
+      "frame_end": 111
+    },
+    {
+      "start_time": 7.165026664733887,
+      "end_time": 7.165026664733887,
+      "duration": 0.0,
+      "pose_type": "走动",
+      "frame_start": 111,
+      "frame_end": 111
+    },
+    {
+      "start_time": 7.165026664733887,
+      "end_time": 7.285555362701416,
+      "duration": 0.1205286979675293,
+      "pose_type": "未知",
+      "frame_start": 111,
+      "frame_end": 114
+    },
+    {
+      "start_time": 7.285555362701416,
+      "end_time": 7.285555362701416,
+      "duration": 0.0,
+      "pose_type": "走动",
+      "frame_start": 114,
+      "frame_end": 114
+    },
+    {
+      "start_time": 7.285555362701416,
+      "end_time": 7.325626373291016,
+      "duration": 0.04007101058959961,
+      "pose_type": "未知",
+      "frame_start": 114,
+      "frame_end": 115
+    },
+    {
+      "start_time": 7.325626373291016,
+      "end_time": 7.325626373291016,
+      "duration": 0.0,
+      "pose_type": "走动",
+      "frame_start": 115,
+      "frame_end": 115
+    },
+    {
+      "start_time": 7.325626373291016,
+      "end_time": 118.60258913040161,
+      "duration": 111.2769627571106,
+      "pose_type": "未知",
+      "frame_start": 115,
+      "frame_end": 3490
+    }
+  ],
+  "student_behaviors": [],
+  "interactions": []
+}

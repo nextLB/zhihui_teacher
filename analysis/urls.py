@@ -16,7 +16,12 @@ urlpatterns = [
     path('video/list/', views.video_list, name='video_list'),
     path('video/<int:video_id>/', views.video_detail, name='video_detail'),
     path('video/<int:video_id>/analyze/', views.start_video_analysis, name='start_video_analysis'),
+    path('video/<int:video_id>/progress/', views.video_analysis_progress, name='video_analysis_progress'),
     path('video/<int:video_id>/delete/', views.delete_video, name='delete_video'),
+    
+    # 数据采集
+    path('data/collection/', views.data_collection, name='data_collection'),
+    path('data/save/', views.save_collection, name='save_collection'),
     
     # 风格画像
     path('profile/create/', views.create_profile, name='create_profile'),

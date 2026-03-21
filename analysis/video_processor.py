@@ -5,9 +5,15 @@
 
 import os
 import json
+import time
 # import numpy as np  # TODO: 安装 numpy: pip install numpy
 from typing import Dict, Any, Optional, List, Tuple
 from django.conf import settings
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 
 class VideoProcessor:
@@ -53,25 +59,27 @@ class VideoProcessor:
                 - height: 高度
                 - duration: 时长(秒)
         """
-        # ============================================================
-        # TODO: 在这里实现获取视频信息的逻辑
-        # 示例:
-        # import cv2
-        # cap = cv2.VideoCapture(file_path)
-        # fps = cap.get(cv2.CAP_PROP_FPS)
-        # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        # width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        # height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        # duration = frame_count / fps if fps > 0 else 0
-        # return {
-        #     'fps': fps,
-        #     'frame_count': frame_count,
-        #     'width': width,
-        #     'height': height,
-        #     'duration': duration
-        # }
-        # ============================================================
-        raise NotImplementedError("请在此处实现获取视频信息算法")
+        import cv2
+        
+        cap = cv2.VideoCapture(file_path)
+        if not cap.isOpened():
+            raise ValueError(f"无法打开视频文件: {file_path}")
+        
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        duration = frame_count / fps if fps > 0 else 0
+        
+        cap.release()
+        
+        return {
+            'fps': fps,
+            'frame_count': frame_count,
+            'width': width,
+            'height': height,
+            'duration': duration
+        }
     
     @staticmethod
     def extract_frames(file_path: str, output_dir: str, frame_interval: int = 1) -> List[str]:
@@ -380,12 +388,13 @@ class KeyFrameExtractor:
         raise NotImplementedError("请在此处实现关键帧提取算法")
 
 
-def analyze_video(file_path: str) -> Dict[str, Any]:
+def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
     """
     完整的视频分析流程
     
     参数:
         file_path: str - 视频文件路径
+        video_id: int - 视频ID，用于保存进度
         
     返回:
         Dict[str, Any]: 完整的分析结果，包含:
@@ -403,57 +412,130 @@ def analyze_video(file_path: str) -> Dict[str, Any]:
             - student_attention_ratio: 学生注意力比例
             - key_frames: 关键帧路径列表
     """
-    # 步骤1: 获取视频信息
+    import sys
+    from pathlib import Path
+    
+    vision_code_path = Path(__file__).parent.parent / 'vision_code'
+    sys.path.insert(0, str(vision_code_path))
+    
+    from src.video_capture import VideoCapture
+    from src.detector import PoseDetector
+    from src.pose_estimator import PoseEstimator, TeacherPose, StudentBehavior
+    from src.behavior_recognizer import BehaviorRecognizer
+    from src.statistics import ClassroomStatistics
+    from src.feature_extractor import FeatureExtractor
+    
     video_info = VideoProcessor.get_video_info(file_path)
     fps = video_info['fps']
     frame_count = video_info['frame_count']
     
-    # 步骤2: 初始化检测器
-    detector = YOLODetector()
-    pose_estimator = PoseEstimator()
-    behavior_analyzer = BehaviorAnalyzer()
-    keyframe_extractor = KeyFrameExtractor()
+    model_path = str(vision_code_path / 'yolov8s-pose.pt')
     
-    # 步骤3: 初始化统计变量
-    teacher_pose_counts = {
-        'standing': 0,
-        'walking': 0,
-        'writing': 0,
-        'facing_students': 0
-    }
-    student_behavior_counts = {
-        'hand_raising': 0,
-        'standing': 0,
-        'head_down': 0,
-        'normal': 0
-    }
-    interaction_count = 0
+    detector = PoseDetector(
+        model_path=model_path,
+        confidence=0.5,
+        iou_threshold=0.45,
+        keypoint_threshold=0.3
+    )
     
-    # 姿态时序数据
-    teacher_posture_timeline = []
-    student_behavior_timeline = []
+    pose_estimator = PoseEstimator({
+        "standing_threshold": 5,
+        "walking_distance_threshold": 30,
+        "writing_height_threshold": 150,
+        "facing_student_angle_threshold": 45,
+        "hand_raise_threshold": 50,
+        "head_drop_threshold": 30,
+        "stand_up_threshold": 80
+    })
     
-    # 步骤4: 逐帧处理
-    # (这里应该遍历每一帧，实际实现时需要优化处理速度)
+    behavior_recognizer = BehaviorRecognizer({
+        "interaction_distance_threshold": 200,
+        "time_window": 60
+    })
     
-    # 步骤5: 提取关键帧
-    key_frames = keyframe_extractor.extract_key_frames(file_path, os.path.join(settings.MEDIA_ROOT, 'images'))
+    statistics = ClassroomStatistics()
+    feature_extractor = FeatureExtractor()
+    feature_extractor.set_statistics(statistics)
     
-    # 步骤6: 计算统计结果
-    total_frames = frame_count if frame_count > 0 else 1
+    video_cap = VideoCapture(file_path)
+    if not video_cap.open():
+        raise ValueError(f"无法打开视频: {file_path}")
+    
+    video_info = video_cap.get_info()
+    frame_shape = (video_info['height'], video_info['width'])
+    
+    current_pose = None
+    start_time = time.time()
+    
+    for frame_id, frame in video_cap.stream(skip_frames=1):
+        detections = detector.detect(frame)
+        current_time = time.time() - start_time
+        
+        frame_analyses = behavior_recognizer.analyze_frame(
+            detections, frame_id, current_time, frame_shape
+        )
+        
+        for det in detections:
+            if det.keypoints is not None:
+                pose_result = pose_estimator.estimate_teacher_pose(det, frame_shape)
+                pose_type = pose_result.pose_type
+                
+                if current_pose is None or current_pose != pose_type:
+                    if current_pose is not None:
+                        statistics.finish_pose_tracking(current_time, frame_id)
+                    statistics.start_pose_tracking(pose_type, current_time, frame_id)
+                    current_pose = pose_type
+                
+                centroid = PoseEstimator.get_pose_centroid(det, frame_shape)
+                if centroid:
+                    statistics.add_teacher_position(centroid[0], centroid[1], current_time)
+            else:
+                behavior_result = pose_estimator.estimate_student_behavior(det, frame_shape)
+                behavior_type = behavior_result.pose_type
+                
+                if behavior_type != StudentBehavior.NORMAL.value:
+                    statistics.add_student_behavior(behavior_type, current_time, frame_id)
+        
+        if video_id and frame_id % 30 == 0:
+            progress_file = os.path.join(settings.MEDIA_ROOT, f'video_{video_id}_progress.json')
+            progress_data = {
+                'frame_id': frame_id,
+                'total_frames': frame_count,
+                'progress': frame_id / frame_count * 100 if frame_count > 0 else 0
+            }
+            with open(progress_file, 'w') as f:
+                json.dump(progress_data, f)
+    
+    video_cap.release()
+    
+    statistics.update_progress(frame_count, time.time() - start_time)
+    if current_pose:
+        statistics.finish_pose_tracking(time.time() - start_time, frame_count)
+    
+    summary = statistics.get_summary()
+    features = feature_extractor.extract_features()
+    
+    teacher_pose_ratios = summary.get('teacher_pose_time_ratio', {})
     
     return {
-        'teacher_standing_ratio': teacher_pose_counts['standing'] / total_frames,
-        'teacher_walking_ratio': teacher_pose_counts['walking'] / total_frames,
-        'teacher_writing_ratio': teacher_pose_counts['writing'] / total_frames,
-        'teacher_facing_students_ratio': teacher_pose_counts['facing_students'] / total_frames,
-        'teacher_posture_timeline': teacher_posture_timeline,
-        'student_hand_raising_count': student_behavior_counts['hand_raising'],
-        'student_standing_count': student_behavior_counts['standing'],
-        'student_head_down_count': student_behavior_counts['head_down'],
-        'student_behavior_timeline': student_behavior_timeline,
-        'interaction_count': interaction_count,
-        'teacher_movement_range': 0.0,  # 需要计算
-        'student_attention_ratio': 0.0,  # 需要计算
-        'key_frames': key_frames
+        'teacher_standing_ratio': teacher_pose_ratios.get('站立', 0),
+        'teacher_walking_ratio': teacher_pose_ratios.get('走动', 0),
+        'teacher_writing_ratio': teacher_pose_ratios.get('板书', 0),
+        'teacher_facing_students_ratio': teacher_pose_ratios.get('面向学生', 0),
+        'teacher_posture_timeline': [
+            {
+                'time': seg.start_time,
+                'pose': seg.pose_type,
+                'duration': seg.duration
+            }
+            for seg in statistics.teacher_pose_segments
+        ],
+        'student_hand_raising_count': summary.get('student_behavior_counts', {}).get('举手', 0),
+        'student_standing_count': summary.get('student_behavior_counts', {}).get('起立', 0),
+        'student_head_down_count': summary.get('student_behavior_counts', {}).get('低头', 0),
+        'student_behavior_timeline': statistics.student_behavior_events,
+        'interaction_count': summary.get('interaction_count', 0),
+        'teacher_movement_range': summary.get('walking_range', 0),
+        'student_attention_ratio': 1.0 - (summary.get('student_behavior_counts', {}).get('低头', 0) / max(frame_count, 1)),
+        'key_frames': []
     }

@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+{% block title %}数据采集{% endblock %}
+{% block content %}
+<h2>实时数据采集</h2>
+<hr>
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <video id="previewVideo" autoplay playsinline muted style="width: 100%; max-height: 400px; background: #000;"></video>
+                <audio id="previewAudio" autoplay playsinline style="width: 100%; margin-top: 10px; display: none;"></audio>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5>采集控制</h5>
+                <div class="mb-3">
+                    <label class="form-label">采集类型</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="collectionType" id="type_audio" value="audio" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="type_audio">仅音频</label>
+                        
+                        <input type="radio" class="btn-check" name="collectionType" id="type_video" value="video" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="type_video">仅视频</label>
+                        
+                        <input type="radio" class="btn-check" name="collectionType" id="type_both" value="both" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="type_both">音视频同步</label>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="title" class="form-label">采集标题</label>
+                    <input type="text" class="form-control" id="title" placeholder="输入采集标题" value="课堂实况">
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button id="btnStart" class="btn btn-success flex-fill">
+                        <i class="bi bi-record-circle"></i> 开始采集
+                    </button>
+                    <button id="btnStop" class="btn btn-danger flex-fill" disabled>
+                        <i class="bi bi-stop-fill"></i> 停止采集
+                    </button>
+                    <button id="btnSave" class="btn btn-primary flex-fill" disabled>
+                        <i class="bi bi-save"></i> 保存数据
+                    </button>
+                </div>
+                
+                <div class="mt-3">
+                    <span class="badge bg-secondary" id="statusBadge">未开始</span>
+                    <span class="ms-2">时长: <span id="recordTime">00:00</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> 使用说明</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>请允许浏览器访问摄像头和麦克风</li>
+                    <li>选择采集类型（仅音频/仅视频/音视频同步）</li>
+                    <li>点击"开始采集"按钮开始录制</li>
+                    <li>点击"停止采集"停止录制</li>
+                    <li>点击"保存数据"将采集的内容保存到系统</li>
+                </ol>
+                <div class="alert alert-warning">
+                    <small>注意: 采集的数据将保存为WebM格式，可以在后续进行分帧处理和语音分析。</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-camera-video"></i> 设备预览</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="previewVideoSwitch" checked>
+                    <label class="form-check-label" for="previewVideoSwitch">视频预览</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="previewAudioSwitch" checked>
+                    <label class="form-check-label" for="previewAudioSwitch">音频预览</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.recording-indicator {
+    animation: pulse 1s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let mediaStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let startTime = null;
+let timerInterval = null;
+let audioContext = null;
+let audioStream = null;
+let audioMediaRecorder = null;
+let audioChunks = [];
+let recordedVideoBlob = null;
+let recordedAudioBlob = null;
+
+const previewVideo = document.getElementById('previewVideo');
+const previewAudio = document.getElementById('previewAudio');
+const btnStart = document.getElementById('btnStart');
+const btnStop = document.getElementById('btnStop');
+const btnSave = document.getElementById('btnSave');
+const statusBadge = document.getElementById('statusBadge');
+const recordTime = document.getElementById('recordTime');
+const collectionTypeInputs = document.querySelectorAll('input[name="collectionType"]');
+
+document.getElementById('previewVideoSwitch').addEventListener('change', function() {
+    previewVideo.style.display = this.checked ? 'block' : 'none';
+});
+
+document.getElementById('previewAudioSwitch').addEventListener('change', function() {
+    previewAudio.style.display = this.checked ? 'block' : 'none';
+});
+
+async function initMedia() {
+    const collectionType = document.querySelector('input[name="collectionType"]:checked').value;
+    
+    try {
+        let constraints = { video: false, audio: false };
+        
+        if (collectionType === 'audio') {
+            constraints.audio = true;
+        } else if (collectionType === 'video') {
+            constraints.video = true;
+            constraints.audio = true;
+        } else {
+            constraints.video = true;
+            constraints.audio = true;
+        }
+        
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (collectionType === 'audio') {
+            previewAudio.srcObject = mediaStream;
+            previewAudio.style.display = document.getElementById('previewAudioSwitch').checked ? 'block' : 'none';
+            previewVideo.style.display = 'none';
+        } else {
+            previewVideo.srcObject = mediaStream;
+            previewVideo.style.display = document.getElementById('previewVideoSwitch').checked ? 'block' : 'none';
+            if (collectionType === 'both') {
+                previewAudio.srcObject = mediaStream;
+                previewAudio.style.display = document.getElementById('previewAudioSwitch').checked ? 'block' : 'none';
+            } else {
+                previewAudio.style.display = 'none';
+            }
+        }
+        
+        return true;
+    } catch (err) {
+        alert('无法访问媒体设备: ' + err.message);
+        return false;
+    }
+}
+
+btnStart.addEventListener('click', async () => {
+    const success = await initMedia();
+    if (!success) return;
+    
+    const collectionType = document.querySelector('input[name="collectionType"]:checked').value;
+    recordedChunks = [];
+    audioChunks = [];
+    
+    const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm';
+    }
+    
+    mediaRecorder = new MediaRecorder(mediaStream, options);
+    
+    mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+            recordedChunks.push(e.data);
+        }
+    };
+    
+    mediaRecorder.onstop = () => {
+        recordedVideoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        btnSave.disabled = false;
+        statusBadge.textContent = '已停止';
+        statusBadge.className = 'badge bg-warning';
+    };
+    
+    if (collectionType === 'both') {
+        const audioTrack = mediaStream.getAudioTracks()[0];
+        const audioOnlyStream = new MediaStream([audioTrack]);
+        audioMediaRecorder = new MediaRecorder(audioOnlyStream, { mimeType: 'audio/webm' });
+        
+        audioMediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                audioChunks.push(e.data);
+            }
+        };
+        
+        audioMediaRecorder.onstop = () => {
+            recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        };
+        
+        audioMediaRecorder.start(1000);
+    }
+    
+    mediaRecorder.start(1000);
+    
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const seconds = (elapsed % 60).toString().padStart(2, '0');
+        recordTime.textContent = `${minutes}:${seconds}`;
+    }, 1000);
+    
+    btnStart.disabled = true;
+    btnStop.disabled = false;
+    statusBadge.textContent = '采集中';
+    statusBadge.className = 'badge bg-danger recording-indicator';
+});
+
+btnStop.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    if (audioMediaRecorder && audioMediaRecorder.state !== 'inactive') {
+        audioMediaRecorder.stop();
+    }
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+    }
+    
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+});
+
+btnSave.addEventListener('click', async () => {
+    const title = document.getElementById('title').value || '采集数据';
+    const collectionType = document.querySelector('input[name="collectionType"]:checked').value;
+    
+    const formData = new FormData();
+    formData.append('type', collectionType);
+    formData.append('title', title);
+    
+    if (recordedVideoBlob && (collectionType === 'video' || collectionType === 'both')) {
+        formData.append('video_file', recordedVideoBlob, 'capture.webm');
+    }
+    
+    if (collectionType === 'both' && recordedAudioBlob) {
+        formData.append('audio_file', recordedAudioBlob, 'capture_audio.webm');
+    } else if (collectionType === 'audio' && recordedAudioBlob) {
+        formData.append('audio_file', recordedAudioBlob, 'capture.webm');
+    }
+    
+    submitForm(formData);
+});
+
+function submitForm(formData) {
+    fetch('{% url "analysis:save_collection" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => { throw new Error(text) });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('数据保存成功！\n保存位置: media/captures/');
+            window.location.href = '{% url "analysis:video_list" %}';
+        } else {
+            alert('保存失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('请求失败: ' + error);
+    });
+}
+
+collectionTypeInputs.forEach(input => {
+    input.addEventListener('change', () => {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
+        initMedia();
+    });
+});
+</script>
+{% endblock %}

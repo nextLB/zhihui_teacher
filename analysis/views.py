@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.utils import timezone
 from django.conf import settings
 import os
+import json
 import threading
 
 from .models import AudioFile, VideoFile, AudioAnalysisResult, VideoAnalysisResult, TeacherStyleProfile
@@ -257,9 +258,7 @@ def run_video_analysis(video_id):
         video.save()
         
         # 调用视频分析算法
-        # 注意: 这里调用的是analysis/video_processor.py中定义的分析函数
-        # 用户需要在那些函数中实现具体的算法代码
-        result = analyze_video(video.file.path)
+        result = analyze_video(video.file.path, video_id)
         
         # 保存分析结果
         VideoAnalysisResult.objects.create(
@@ -520,3 +519,161 @@ def delete_profile(request, profile_id):
     profile.delete()
     messages.success(request, '风格画像已删除')
     return redirect('analysis:profile_list')
+
+
+@login_required
+def video_analysis_progress(request, video_id):
+    """
+    获取视频分析进度API
+    
+    参数:
+        request: HttpRequest对象
+        video_id: int - 视频文件ID
+        
+    返回:
+        JsonResponse - 分析进度信息
+    """
+    video = get_object_or_404(VideoFile, id=video_id, user=request.user)
+    
+    progress_file = os.path.join(settings.MEDIA_ROOT, f'video_{video_id}_progress.json')
+    
+    if os.path.exists(progress_file):
+        with open(progress_file, 'r') as f:
+            progress_data = json.load(f)
+    else:
+        progress_data = {'progress': 0, 'frame_id': 0, 'total_frames': 0}
+    
+    return JsonResponse({
+        'status': video.status,
+        'progress': progress_data.get('progress', 0),
+        'frame_id': progress_data.get('frame_id', 0),
+        'total_frames': progress_data.get('total_frames', 0)
+    })
+
+
+@login_required
+def data_collection(request):
+    """
+    数据采集页面视图
+    
+    参数:
+        request: HttpRequest对象
+        
+    返回:
+        HttpResponse对象 - 渲染数据采集页面
+    """
+    return render(request, 'analysis/data_collection.html')
+
+
+@login_required
+def save_collection(request):
+    """
+    保存采集的数据
+    
+    参数:
+        request: HttpRequest对象
+        
+    返回:
+        JsonResponse - 保存结果
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': '请求方法不正确'}, status=400)
+    
+    try:
+        collection_type = request.POST.get('type', 'both')
+        title = request.POST.get('title', '采集数据')
+        
+        saved_files = []
+        
+        timestamp = int(timezone.now().timestamp())
+        save_dir = os.path.join(settings.MEDIA_ROOT, 'captures')
+        os.makedirs(save_dir, exist_ok=True)
+        
+        if collection_type in ['video', 'both']:
+            if 'video_file' in request.FILES:
+                video_file = request.FILES['video_file']
+                video_filename = f"capture_{timestamp}.mp4"
+                video_path = os.path.join(save_dir, video_filename)
+                
+                try:
+                    import subprocess
+                    temp_webm = os.path.join(save_dir, f"temp_{timestamp}.webm")
+                    with open(temp_webm, 'wb') as f:
+                        for chunk in video_file.chunks():
+                            f.write(chunk)
+                    
+                    subprocess.run([
+                        'ffmpeg', '-i', temp_webm, '-c:v', 'libx264', 
+                        '-preset', 'fast', '-crf', '23', '-c:a', 'aac', 
+                        '-b:a', '128k', '-y', video_path
+                    ], check=True, capture_output=True)
+                    
+                    os.remove(temp_webm)
+                    file_size = os.path.getsize(video_path)
+                except Exception as e:
+                    import shutil
+                    shutil.copy(temp_webm, video_path.replace('.mp4', '.webm'))
+                    video_filename = f"capture_{timestamp}.webm"
+                    video_path = video_path.replace('.mp4', '.webm')
+                    file_size = os.path.getsize(video_path)
+                    os.remove(temp_webm) if os.path.exists(temp_webm) else None
+                
+                full_path = os.path.join('captures', video_filename)
+                video = VideoFile.objects.create(
+                    user=request.user,
+                    title=f"{title} - 视频",
+                    file=full_path,
+                    file_type='mp4' if video_filename.endswith('.mp4') else 'webm',
+                    file_size=file_size,
+                    status='pending'
+                )
+                saved_files.append({'type': 'video', 'id': video.id, 'path': video_path})
+        
+        if collection_type in ['audio', 'both']:
+            if 'audio_file' in request.FILES:
+                audio_file = request.FILES['audio_file']
+                audio_filename = f"capture_{timestamp}.mp3"
+                audio_path = os.path.join(save_dir, audio_filename)
+                
+                try:
+                    temp_webm = os.path.join(save_dir, f"temp_audio_{timestamp}.webm")
+                    with open(temp_webm, 'wb') as f:
+                        for chunk in audio_file.chunks():
+                            f.write(chunk)
+                    
+                    subprocess.run([
+                        'ffmpeg', '-i', temp_webm, '-acodec', 'libmp3lame',
+                        '-ab', '128k', '-y', audio_path
+                    ], check=True, capture_output=True)
+                    
+                    os.remove(temp_webm)
+                    file_size = os.path.getsize(audio_path)
+                except Exception as e:
+                    import shutil
+                    shutil.copy(temp_webm, audio_path.replace('.mp3', '.webm'))
+                    audio_filename = f"capture_{timestamp}.webm"
+                    audio_path = audio_path.replace('.mp3', '.webm')
+                    file_size = os.path.getsize(audio_path)
+                    os.remove(temp_webm) if os.path.exists(temp_webm) else None
+                
+                full_path = os.path.join('captures', audio_filename)
+                audio = AudioFile.objects.create(
+                    user=request.user,
+                    title=f"{title} - 音频",
+                    file=full_path,
+                    file_type='mp3' if audio_filename.endswith('.mp3') else 'webm',
+                    file_size=file_size,
+                    status='pending'
+                )
+                saved_files.append({'type': 'audio', 'id': audio.id, 'path': audio_path})
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'成功保存 {len(saved_files)} 个文件',
+            'files': saved_files
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)

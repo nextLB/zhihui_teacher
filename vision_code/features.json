@@ -1,0 +1,20 @@
+{
+  "feature_vector": {
+    "teacher_standing_ratio": 0.0,
+    "teacher_walking_ratio": 0.0,
+    "teacher_writing_ratio": 0.0,
+    "teacher_facing_student_ratio": 0.0,
+    "student_hand_raise_count": 0,
+    "student_stand_up_count": 0,
+    "student_head_down_count": 0,
+    "interaction_frequency": 0.0,
+    "interaction_duration_ratio": 0.0,
+    "walking_range": 688.3532673118434,
+    "walking_speed": 1647.4925456421158,
+    "pose_transition_count": 6,
+    "total_frames": 3490,
+    "total_duration": 118.60258913040161
+  },
+  "engagement_score": 0.0,
+  "attention_score": 0.3
+}
