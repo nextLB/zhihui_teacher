@@ -18,6 +18,8 @@ urlpatterns = [
     path('video/<int:video_id>/', views.video_detail, name='video_detail'),
     path('video/<int:video_id>/analyze/', views.start_video_analysis, name='start_video_analysis'),
     path('video/<int:video_id>/progress/', views.video_analysis_progress, name='video_analysis_progress'),
+    path('video/<int:video_id>/preview/', views.get_video_preview, name='get_video_preview'),
+    path('video/<int:video_id>/captured-frames/', views.get_captured_frames, name='get_captured_frames'),
     path('video/<int:video_id>/delete/', views.delete_video, name='delete_video'),
     
     # 数据采集

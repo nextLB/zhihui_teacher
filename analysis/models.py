@@ -148,6 +148,9 @@ class VideoAnalysisResult(models.Model):
     # 关键帧提取
     key_frames = models.JSONField(default=list, verbose_name='关键帧路径列表')
     
+    # 捕获的代表性帧（带识别标注的图像）
+    captured_frames = models.JSONField(default=list, verbose_name='捕获的代表性帧列表')
+    
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='分析时间')
 
     class Meta:

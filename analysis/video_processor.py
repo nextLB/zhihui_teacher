@@ -411,8 +411,11 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
             - teacher_movement_range: 教师活动范围
             - student_attention_ratio: 学生注意力比例
             - key_frames: 关键帧路径列表
+            - captured_frames: 捕获的代表性帧路径列表
     """
     import sys
+    import cv2
+    import numpy as np
     from pathlib import Path
     
     vision_code_path = Path(__file__).parent.parent / 'vision_code'
@@ -424,10 +427,18 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
     from src.behavior_recognizer import BehaviorRecognizer
     from src.statistics import ClassroomStatistics
     from src.feature_extractor import FeatureExtractor
+    from src.visualizer import Visualizer
     
     video_info = VideoProcessor.get_video_info(file_path)
     fps = video_info['fps']
     frame_count = video_info['frame_count']
+    
+    output_dir = None
+    frames_dir = None
+    if video_id:
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'video_analysis', f'video_{video_id}')
+        frames_dir = os.path.join(output_dir, 'captured_frames')
+        os.makedirs(frames_dir, exist_ok=True)
     
     model_path = str(vision_code_path / 'yolov8s-pose.pt')
     
@@ -457,6 +468,8 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
     feature_extractor = FeatureExtractor()
     feature_extractor.set_statistics(statistics)
     
+    visualizer = Visualizer(show_labels=True, show_keypoints=True)
+    
     video_cap = VideoCapture(file_path)
     if not video_cap.open():
         raise ValueError(f"无法打开视频: {file_path}")
@@ -467,42 +480,114 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
     current_pose = None
     start_time = time.time()
     
+    captured_frames = []
+    captured_people = []
+    frame_interval = max(1, int(frame_count / 10))
+    last_capture_frame = 0
+    last_annotated_frame = None
+    pose_change_count = 0
+    student_behavior_count = 0
+    
     for frame_id, frame in video_cap.stream(skip_frames=1):
         detections = detector.detect(frame)
         current_time = time.time() - start_time
+        
+        annotated_frame = frame.copy()
         
         frame_analyses = behavior_recognizer.analyze_frame(
             detections, frame_id, current_time, frame_shape
         )
         
+        teacher_pose_type = None
+        student_behavior_type = None
+        
         for det in detections:
             if det.keypoints is not None:
                 pose_result = pose_estimator.estimate_teacher_pose(det, frame_shape)
                 pose_type = pose_result.pose_type
+                teacher_pose_type = pose_type
+                
+                annotated_frame = visualizer.draw_detection(
+                    annotated_frame, det, pose_type=pose_type
+                )
+                annotated_frame = visualizer.draw_keypoints(
+                    annotated_frame, det.keypoints, det.keypoint_scores
+                )
                 
                 if current_pose is None or current_pose != pose_type:
-                    if current_pose is not None:
-                        statistics.finish_pose_tracking(current_time, frame_id)
+                    if current_pose is not None and video_id and len(captured_frames) < 5:
+                        pose_change_count += 1
+                        frame_filename = f'pose_change_{pose_change_count}_{pose_type}.jpg'
+                        frame_path = os.path.join(frames_dir, frame_filename)
+                        cv2.imwrite(frame_path, annotated_frame)
+                        captured_frames.append({
+                            'path': f'video_analysis/video_{video_id}/captured_frames/{frame_filename}',
+                            'type': 'pose_change',
+                            'pose': pose_type,
+                            'frame_id': frame_id
+                        })
+                    statistics.finish_pose_tracking(current_time, frame_id)
                     statistics.start_pose_tracking(pose_type, current_time, frame_id)
                     current_pose = pose_type
                 
                 centroid = PoseEstimator.get_pose_centroid(det, frame_shape)
                 if centroid:
                     statistics.add_teacher_position(centroid[0], centroid[1], current_time)
+                
+                if video_id and frame_id - last_capture_frame >= frame_interval and len(captured_people) < 3:
+                    box = det.box
+                    x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+                    x1 = max(0, x1 - 20)
+                    y1 = max(0, y1 - 20)
+                    x2 = min(frame.shape[1], x2 + 20)
+                    y2 = min(frame.shape[0], y2 + 20)
+                    person_crop = annotated_frame[y1:y2, x1:x2]
+                    if person_crop.size > 0:
+                        person_filename = f'person_{pose_type}_{frame_id}.jpg'
+                        person_path = os.path.join(frames_dir, person_filename)
+                        cv2.imwrite(person_path, person_crop)
+                        captured_people.append({
+                            'path': f'video_analysis/video_{video_id}/captured_frames/{person_filename}',
+                            'type': 'person',
+                            'pose': pose_type,
+                            'frame_id': frame_id
+                        })
+                    last_capture_frame = frame_id
             else:
                 behavior_result = pose_estimator.estimate_student_behavior(det, frame_shape)
                 behavior_type = behavior_result.pose_type
+                student_behavior_type = behavior_type
+                
+                annotated_frame = visualizer.draw_detection(
+                    annotated_frame, det, behavior_type=behavior_type
+                )
                 
                 if behavior_type != StudentBehavior.NORMAL.value:
                     statistics.add_student_behavior(behavior_type, current_time, frame_id)
+                    if video_id and len(captured_frames) < 8:
+                        student_behavior_count += 1
+                        frame_filename = f'student_behavior_{behavior_type}_{student_behavior_count}.jpg'
+                        frame_path = os.path.join(frames_dir, frame_filename)
+                        cv2.imwrite(frame_path, annotated_frame)
+                        captured_frames.append({
+                            'path': f'video_analysis/video_{video_id}/captured_frames/{frame_filename}',
+                            'type': 'student_behavior',
+                            'behavior': behavior_type,
+                            'frame_id': frame_id
+                        })
         
         if video_id and frame_id % 30 == 0:
+            last_annotated_frame = annotated_frame
             progress_file = os.path.join(settings.MEDIA_ROOT, f'video_{video_id}_progress.json')
             progress_data = {
                 'frame_id': frame_id,
                 'total_frames': frame_count,
                 'progress': frame_id / frame_count * 100 if frame_count > 0 else 0
             }
+            if last_annotated_frame is not None:
+                preview_path = os.path.join(settings.MEDIA_ROOT, f'video_{video_id}_preview.jpg')
+                cv2.imwrite(preview_path, last_annotated_frame)
+                progress_data['preview_path'] = f'video_{video_id}_preview.jpg'
             with open(progress_file, 'w') as f:
                 json.dump(progress_data, f)
     
@@ -516,6 +601,9 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
     features = feature_extractor.extract_features()
     
     teacher_pose_ratios = summary.get('teacher_pose_time_ratio', {})
+    
+    all_captured = captured_frames + captured_people
+    all_captured = all_captured[:10]
     
     return {
         'teacher_standing_ratio': teacher_pose_ratios.get('站立', 0),
@@ -537,5 +625,6 @@ def analyze_video(file_path: str, video_id: int = None) -> Dict[str, Any]:
         'interaction_count': summary.get('interaction_count', 0),
         'teacher_movement_range': summary.get('walking_range', 0),
         'student_attention_ratio': 1.0 - (summary.get('student_behavior_counts', {}).get('低头', 0) / max(frame_count, 1)),
-        'key_frames': []
+        'key_frames': [],
+        'captured_frames': all_captured
     }

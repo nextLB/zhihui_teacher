@@ -272,7 +272,8 @@ def run_video_analysis(video_id):
             interaction_count=result.get('interaction_count', 0),
             teacher_movement_range=result.get('teacher_movement_range', 0),
             student_attention_ratio=result.get('student_attention_ratio', 0),
-            key_frames=result.get('key_frames', [])
+            key_frames=result.get('key_frames', []),
+            captured_frames=result.get('captured_frames', [])
         )
         
         video.status = 'completed'
@@ -544,8 +545,60 @@ def video_analysis_progress(request, video_id):
         'status': video.status,
         'progress': progress_data.get('progress', 0),
         'frame_id': progress_data.get('frame_id', 0),
-        'total_frames': progress_data.get('total_frames', 0)
+        'total_frames': progress_data.get('total_frames', 0),
+        'preview_path': progress_data.get('preview_path', '')
     })
+
+
+@login_required
+def get_video_preview(request, video_id):
+    """
+    获取视频分析预览图API
+    
+    参数:
+        request: HttpRequest对象
+        video_id: int - 视频文件ID
+        
+    返回:
+        HttpResponse - 预览图
+    """
+    video = get_object_or_404(VideoFile, id=video_id, user=request.user)
+    
+    preview_path = os.path.join(settings.MEDIA_ROOT, f'video_{video_id}_preview.jpg')
+    
+    if os.path.exists(preview_path):
+        with open(preview_path, 'rb') as f:
+            return HttpResponse(f.read(), content_type='image/jpeg')
+    else:
+        return HttpResponse(status=404)
+
+
+@login_required
+def get_captured_frames(request, video_id):
+    """
+    获取视频分析捕获的代表性帧API
+    
+    参数:
+        request: HttpRequest对象
+        video_id: int - 视频文件ID
+        
+    返回:
+        JsonResponse - 捕获帧信息
+    """
+    video = get_object_or_404(VideoFile, id=video_id, user=request.user)
+    
+    if video.status != 'completed':
+        return JsonResponse({'error': '视频分析尚未完成'}, status=400)
+    
+    try:
+        analysis_result = video.analysis_result
+        captured_frames = analysis_result.captured_frames or []
+        return JsonResponse({
+            'success': True,
+            'captured_frames': captured_frames
+        })
+    except VideoAnalysisResult.DoesNotExist:
+        return JsonResponse({'error': '分析结果不存在'}, status=404)
 
 
 @login_required
@@ -714,13 +767,12 @@ def generate_profile_image(request, profile_id):
     profile = get_object_or_404(TeacherStyleProfile, id=profile_id, user=request.user)
     
     try:
-        from PIL import Image, ImageDraw, ImageFont
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         import numpy as np
         
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK SC', 'DejaVu Sans']
+        plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei', 'WenQuanYi Micro Hei', 'SimHei', 'Noto Sans CJK SC', 'DejaVu Sans']
         plt.rcParams['axes.unicode_minus'] = False
         
         fig = plt.figure(figsize=(12, 8), facecolor='white')
@@ -730,18 +782,14 @@ def generate_profile_image(request, profile_id):
         values = radar_data.get('values', [])
         
         angles = np.linspace(0, 2*np.pi, len(indicators), endpoint=False).tolist()
-        values_plot = values + [values[0]]
-        angles_plot = angles + [angles[0]]
+        values_plot = values + [values[0]] if values else [0]
+        angles_plot = angles + [angles[0]] if angles else [0]
         
         ax1 = fig.add_subplot(121, polar=True)
         ax1.fill(angles_plot, values_plot, alpha=0.25, color='blue')
         ax1.plot(angles_plot, values_plot, 'o-', linewidth=2, color='blue')
         ax1.set_xticks(angles)
         ax1.set_xticklabels(indicators, fontsize=10)
-        ax1.set_title(f'{profile.name}\n{profile.get_style_type_display()}', fontsize=14, fontweight='bold')
-        
-        ax2 = fig.add_subplot(122)
-        ax2.axis('off')
         
         style_type_zh = {
             'active_interactive': '活跃互动型',
@@ -750,6 +798,10 @@ def generate_profile_image(request, profile_id):
             'mixed': '混合型'
         }
         type_display = style_type_zh.get(profile.style_type, profile.style_type)
+        ax1.set_title(f'{profile.name}\n{type_display}', fontsize=14, fontweight='bold')
+        
+        ax2 = fig.add_subplot(122)
+        ax2.axis('off')
         
         tags_text = ', '.join(profile.style_tags) if profile.style_tags else 'N/A'
         info_text = f"""Style Type: {type_display}
@@ -799,6 +851,33 @@ def profile_detail(request, profile_id):
     风格画像详情视图
     """
     profile = get_object_or_404(TeacherStyleProfile, id=profile_id, user=request.user)
+    
+    if not profile.radar_data or not profile.radar_data.get('indicators'):
+        audio_features = {}
+        video_features = {}
+        
+        if profile.audio_result:
+            audio_features = {
+                'speech_rate': profile.audio_result.speech_rate,
+                'tone_type': profile.audio_result.tone_type,
+                'question_types': profile.audio_result.question_types,
+                'utterance_length_avg': profile.audio_result.utterance_length_avg
+            }
+        
+        if profile.video_result:
+            video_features = {
+                'teacher_standing_ratio': profile.video_result.teacher_standing_ratio,
+                'teacher_walking_ratio': profile.video_result.teacher_walking_ratio,
+                'teacher_writing_ratio': profile.video_result.teacher_writing_ratio,
+                'teacher_facing_students_ratio': profile.video_result.teacher_facing_students_ratio,
+                'student_hand_raising_count': profile.video_result.student_hand_raising_count,
+                'interaction_count': profile.video_result.interaction_count
+            }
+        
+        profile_data = build_style_profile(audio_features, video_features)
+        profile.radar_data = profile_data.get('radar_data', {})
+        profile.feature_vector = profile_data.get('feature_vector', {})
+        profile.save()
     
     return render(request, 'analysis/profile_detail.html', {
         'profile': profile,
