@@ -772,14 +772,25 @@ def generate_profile_image(request, profile_id):
         import matplotlib.pyplot as plt
         import numpy as np
         
-        plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei', 'WenQuanYi Micro Hei', 'SimHei', 'Noto Sans CJK SC', 'DejaVu Sans']
         plt.rcParams['axes.unicode_minus'] = False
         
         fig = plt.figure(figsize=(12, 8), facecolor='white')
         
         radar_data = profile.radar_data
-        indicators = [ind['name'] for ind in radar_data.get('indicators', [])]
+        original_indicators = [ind['name'] for ind in radar_data.get('indicators', [])]
         values = radar_data.get('values', [])
+        
+        zh_to_en = {
+            '语速': 'Speech Rate',
+            '语气多样性': 'Tone Diversity',
+            '提问比例': 'Question Ratio',
+            '站立比例': 'Standing Ratio',
+            '走动比例': 'Walking Ratio',
+            '板书比例': 'Writing Ratio',
+            '互动频率': 'Interaction',
+            '活动度': 'Activity'
+        }
+        indicators = [zh_to_en.get(ind, ind) for ind in original_indicators]
         
         angles = np.linspace(0, 2*np.pi, len(indicators), endpoint=False).tolist()
         values_plot = values + [values[0]] if values else [0]
@@ -791,37 +802,41 @@ def generate_profile_image(request, profile_id):
         ax1.set_xticks(angles)
         ax1.set_xticklabels(indicators, fontsize=10)
         
-        style_type_zh = {
-            'active_interactive': '活跃互动型',
-            'calm_lecture': '沉稳讲授型',
-            'walking_guide': '走动引导型',
-            'mixed': '混合型'
+        style_type_map = {
+            'active_interactive': 'Active Interactive',
+            'calm_lecture': 'Calm Lecture',
+            'walking_guide': 'Walking Guide',
+            'mixed': 'Mixed Style'
         }
-        type_display = style_type_zh.get(profile.style_type, profile.style_type)
-        ax1.set_title(f'{profile.name}\n{type_display}', fontsize=14, fontweight='bold')
+        type_display = style_type_map.get(profile.style_type, profile.style_type)
+        ax1.set_title(f'{profile.name}\n({type_display})', fontsize=14, fontweight='bold')
         
         ax2 = fig.add_subplot(122)
         ax2.axis('off')
         
         tags_text = ', '.join(profile.style_tags) if profile.style_tags else 'N/A'
-        info_text = f"""Style Type: {type_display}
-
-Tags: {tags_text}
-
-Created: {profile.created_at.strftime('%Y-%m-%d %H:%M')}
-
-Features:
-Speech Rate: {profile.feature_vector.get('speech_rate_norm', 0):.2f}
-Tone Diversity: {profile.feature_vector.get('tone_diversity', 0):.2f}
-Question Ratio: {profile.feature_vector.get('question_ratio', 0):.2f}
-Walking Ratio: {profile.feature_vector.get('walking_ratio', 0):.2f}
-Writing Ratio: {profile.feature_vector.get('writing_ratio', 0):.2f}
-Interaction: {profile.feature_vector.get('interaction_ratio', 0):.2f}
-Activity: {profile.feature_vector.get('movement_activity', 0):.2f}"""
+        info_lines = [
+            f'Style Type: {type_display}',
+            '',
+            f'Tags: {tags_text}',
+            '',
+            f'Created: {profile.created_at.strftime("%Y-%m-%d %H:%M")}',
+            '',
+            'Features:',
+            f'  Speech Rate: {profile.feature_vector.get("speech_rate_norm", 0):.2f}',
+            f'  Tone Diversity: {profile.feature_vector.get("tone_diversity", 0):.2f}',
+            f'  Question Ratio: {profile.feature_vector.get("question_ratio", 0):.2f}',
+            f'  Walking Ratio: {profile.feature_vector.get("walking_ratio", 0):.2f}',
+            f'  Writing Ratio: {profile.feature_vector.get("writing_ratio", 0):.2f}',
+            f'  Interaction: {profile.feature_vector.get("interaction_ratio", 0):.2f}',
+            f'  Activity: {profile.feature_vector.get("movement_activity", 0):.2f}'
+        ]
         
-        ax2.text(0.1, 0.9, info_text, transform=ax2.transAxes, fontsize=11,
-                verticalalignment='top', fontfamily='sans-serif',
-                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+        y_pos = 0.95
+        for line in info_lines:
+            ax2.text(0.1, y_pos, line, transform=ax2.transAxes, fontsize=11,
+                    verticalalignment='top', fontfamily='sans-serif')
+            y_pos -= 0.07
         
         plt.tight_layout()
         
